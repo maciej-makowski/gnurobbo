@@ -59,7 +59,7 @@ EMCCFLAGS=-O2
 all: $(SOURCES) $(OUT)
 
 $(OUT): $(BYTECODE)
-	mkdir $(OUTDIR)
+	mkdir -p $(OUTDIR)
 	emcc $(EMCCFLAGS) $(BYTECODE) -o $(OUT) --preload-file $(PACKAGE_DATA_DIR)
 
 $(BYTECODE): $(OBJECTS)

@@ -1594,7 +1594,7 @@ main (int argc, char *argv[])
 #endif
 
 #ifdef EMSCRIPTEN
-  emscripten_set_main_loop(main_loop_iteration, 0, 1);
+  emscripten_set_main_loop(main_loop_iteration, 35, 1);
 #else
   while (!quit_game)
       main_loop_iteration();
