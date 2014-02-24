@@ -113,10 +113,1079 @@ my_srand (unsigned int seed)
 #ifdef __cplusplus
 extern "C"
 #endif
+
+
+void
+main_loop_iteration(void)
+{
+    int count, actionid;
+    MSG_Box temp_msg_box;
+
+    /***************************************************************************
+     * DESIGNER_ON                                                             *
+     ***************************************************************************/
+
+    if (game_mode == DESIGNER_ON)
+    {
+        quit_game |= get_user_action (&actionid, TRUE, &gua_device, &gua_id,
+                &gua_state);
+        if (actionid == ACTION_EXIT)
+        {
+            if(K_exit==TRUE) {
+                konstruktor_end ();
+                game_mode = GAME_ON;
+                K_exit=FALSE;
+            } 
+            else
+            {
+                K_exit=TRUE;
+                sprintf(infostring, "Exit designer - select again to exit");
+                inforedraw = 1;
+            }
+        } else {
+
+            if(actionid!=-1) {
+                if(K_exit==TRUE) {
+                    inforedraw=1;
+                    sprintf(infostring,"  ");
+                }
+                K_exit=FALSE;
+            }
+        }
+        switch (actionid)
+        {
+            case ACTION_TOGGLE_FULLSCREEN:
+                toggle_fullscreen (&video.fullscreen);
+                break;
+            case ACTION_PREVIOUS_LEVEL:
+                if (level_packs[selected_pack].level_selected > 1)
+                {
+                    level_packs[selected_pack].level_selected--;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    konstruktor_init ();
+                }
+                break;
+            case ACTION_NEXT_LEVEL:
+                if (level_packs[selected_pack].level_selected <
+                        level_packs[selected_pack].last_level)
+                {
+                    level_packs[selected_pack].level_selected++;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    konstruktor_init ();
+                }
+                break;
+            case ACTION_PREVIOUS_PACK:
+                if (selected_pack > 0)
+                {
+                    level_packs[selected_pack].selected = FALSE;
+                    selected_pack--;
+                    level_packs[selected_pack].selected = TRUE;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    konstruktor_init ();
+                }
+                break;
+            case ACTION_NEXT_PACK:
+                if (selected_pack < found_pack_count - 1)
+                {
+                    level_packs[selected_pack].selected = FALSE;
+                    selected_pack++;
+                    level_packs[selected_pack].selected = TRUE;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    konstruktor_init ();
+                }
+                break;
+            case ACTION_PRIMARY_CLICK:
+                konstruktor_click ();
+                break;
+            case ACTION_SCROLL_UP:
+                for (count = 0; count < 4; count++) konstruktor_scroll (0);
+                break;
+            case ACTION_UP:
+                konstruktor_scroll (0);
+                break;
+            case ACTION_SCROLL_DOWN:
+                for (count = 0; count < 4; count++) konstruktor_scroll (2);
+                break;
+            case ACTION_DOWN:
+                konstruktor_scroll (2);
+                break;
+            case ACTION_LEFT:
+                konstruktor_scroll (1);
+                break;
+            case ACTION_RIGHT:
+                konstruktor_scroll (3);
+                break;
+                /*	    case ACTION_EXIT:
+                        konstruktor_end ();
+                        game_mode = GAME_ON;
+                        break;
+                        */
+
+            case ACTION_VOLUP:
+#ifdef DEBUG_COLOUR_SELECT
+                if (debug_colour_select_component == 0)
+                {
+                    inc_colour_component (&debug_colour_select_r);
+                }
+                else if (debug_colour_select_component == 1)
+                {
+                    inc_colour_component (&debug_colour_select_g);
+                }
+                else if (debug_colour_select_component == 2)
+                {
+                    inc_colour_component (&debug_colour_select_b);
+                }
+                level.colour_override =
+                    debug_colour_select_r << 16 | debug_colour_select_g << 8 |
+                    debug_colour_select_b;
+                game_area.redraw |= REDRAW_EVERYTHING;
+#else
+                volume_up ();
+#endif
+                break;
+            case ACTION_VOLDOWN:
+#ifdef DEBUG_COLOUR_SELECT
+                if (debug_colour_select_component == 0)
+                {
+                    dec_colour_component (&debug_colour_select_r);
+                }
+                else if (debug_colour_select_component == 1)
+                {
+                    dec_colour_component (&debug_colour_select_g);
+                }
+                else if (debug_colour_select_component == 2)
+                {
+                    dec_colour_component (&debug_colour_select_b);
+                }
+                level.colour_override =
+                    debug_colour_select_r << 16 | debug_colour_select_g << 8 |
+                    debug_colour_select_b;
+                game_area.redraw |= REDRAW_EVERYTHING;
+#else
+                volume_down ();
+#endif
+                break;
+        }
+
+
+    }
+    else if (game_mode == GAME_ON)
+    {
+        /***************************************************************************
+         * GAME ON                                                                 *
+         ***************************************************************************/
+        /* Get none or one user action and quit on SDL_QUIT */
+        quit_game |=
+            get_user_action (&actionid, TRUE, &gua_device, &gua_id,
+                    &gua_state);
+
+#ifdef DEBUG_RECORD_DEMO
+        if (actionid != UNDEFINED && !demo_mode (DEMO_MODE_IS_ACTIVE, 0)
+                && robbo.moved == 0)
+            demo_mode (DEMO_MODE_RECORD, actionid);
+#endif
+
+        /* The restart timeout counts down to a forced restart such as following a BIG_BOOM */
+        if (restart_timeout)
+        {
+            restart_timeout--;
+        }
+        else if (restart_timeout == 0)
+        {
+            restart_timeout--;
+            actionid = ACTION_RESTART;
+        }
+
+        /* If demo mode is active then substitute the actionid with one from the demo */
+        if (demo_mode (DEMO_MODE_IS_ACTIVE, 0))
+        {
+            if (actionid == UNDEFINED)
+            {
+                if (robbo.moved == 0)
+                    actionid = demo_mode (DEMO_MODE_PLAYBACK, 0);
+            }
+            else
+            {
+                actionid = ACTION_EXIT;	/* Quit demo mode on any action */
+            }
+        }
+
+        switch (actionid)
+        {
+            case ACTION_UP:
+            case ACTION_DOWN:
+            case ACTION_LEFT:
+            case ACTION_RIGHT:
+            case ACTION_RESTART:
+            case ACTION_SHOOT_UP:
+            case ACTION_SHOOT_DOWN:
+            case ACTION_SHOOT_LEFT:
+            case ACTION_SHOOT_RIGHT:
+            case ACTION_SELECT:
+            case ACTION_EXIT:
+            case ACTION_HELP:
+            case ACTION_OPTIONS:
+#ifdef HAVE_DESIGNER
+            case ACTION_TOGGLE_DESIGNER:
+#endif
+                manage_game_on_input (actionid);
+                break;
+            case ACTION_TOGGLE_FULLSCREEN:
+                toggle_fullscreen (&video.fullscreen);
+                break;
+            case ACTION_PREVIOUS_LEVEL:
+                if (level_packs[selected_pack].level_selected > 1)
+                {
+                    level_packs[selected_pack].level_selected--;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    if (level_init ())
+                    {
+                        game_mode = INTRO_SCREEN;
+                        intro_screen.redraw |= REDRAW_INITIALISE;
+                    }
+                    else
+                    {
+                        game_area.redraw |= REDRAW_EVERYTHING;
+                    }
+                }
+                break;
+            case ACTION_NEXT_LEVEL:
+                if (level_packs[selected_pack].level_selected <
+                        level_packs[selected_pack].level_reached)
+                {
+                    level_packs[selected_pack].level_selected++;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    if (level_init ())
+                    {
+                        game_mode = INTRO_SCREEN;
+                        intro_screen.redraw |= REDRAW_INITIALISE;
+                    }
+                    else
+                    {
+                        game_area.redraw |= REDRAW_EVERYTHING;
+                    }
+                }
+                break;
+            case ACTION_PREVIOUS_PACK:
+                if (selected_pack > 0)
+                {
+                    level_packs[selected_pack].selected = FALSE;
+                    selected_pack--;
+                    level_packs[selected_pack].selected = TRUE;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    if (level_init ())
+                    {
+                        game_mode = INTRO_SCREEN;
+                        intro_screen.redraw |= REDRAW_INITIALISE;
+                    }
+                    else
+                    {
+                        game_area.redraw |= REDRAW_EVERYTHING;
+                    }
+                }
+                break;
+            case ACTION_NEXT_PACK:
+                if (selected_pack < found_pack_count - 1)
+                {
+                    level_packs[selected_pack].selected = FALSE;
+                    selected_pack++;
+                    level_packs[selected_pack].selected = TRUE;
+                    /* Cancel any active or pending fades */
+                    restart_timeout = -1;
+                    show_game_area_fade (FADE_SUB_KILL, 0);
+                    if (level_init ())
+                    {
+                        game_mode = INTRO_SCREEN;
+                        intro_screen.redraw |= REDRAW_INITIALISE;
+                    }
+                    else
+                    {
+                        game_area.redraw |= REDRAW_EVERYTHING;
+                    }
+                }
+                break;
+            case ACTION_HOME:
+            case ACTION_END:
+                break;
+            case ACTION_PAGEUP:
+#ifdef DEBUG_COLOUR_SELECT
+                debug_colour_select_component--;	/* R = 0, G = 1, B = 2 */
+                if (debug_colour_select_component < 0)
+                    debug_colour_select_component = 2;
+#endif
+                break;
+            case ACTION_PAGEDOWN:
+#ifdef DEBUG_COLOUR_SELECT
+                debug_colour_select_component++;	/* R = 0, G = 1, B = 2 */
+                if (debug_colour_select_component > 2)
+                    debug_colour_select_component = 0;
+#endif
+                break;
+            case ACTION_VOLUP:
+#ifdef DEBUG_COLOUR_SELECT
+                if (debug_colour_select_component == 0)
+                {
+                    inc_colour_component (&debug_colour_select_r);
+                }
+                else if (debug_colour_select_component == 1)
+                {
+                    inc_colour_component (&debug_colour_select_g);
+                }
+                else if (debug_colour_select_component == 2)
+                {
+                    inc_colour_component (&debug_colour_select_b);
+                }
+                level.colour_override =
+                    debug_colour_select_r << 16 | debug_colour_select_g << 8 |
+                    debug_colour_select_b;
+                game_area.redraw |= REDRAW_EVERYTHING;
+#else
+                volume_up ();
+#endif
+                break;
+            case ACTION_VOLDOWN:
+#ifdef DEBUG_COLOUR_SELECT
+                if (debug_colour_select_component == 0)
+                {
+                    dec_colour_component (&debug_colour_select_r);
+                }
+                else if (debug_colour_select_component == 1)
+                {
+                    dec_colour_component (&debug_colour_select_g);
+                }
+                else if (debug_colour_select_component == 2)
+                {
+                    dec_colour_component (&debug_colour_select_b);
+                }
+                level.colour_override =
+                    debug_colour_select_r << 16 | debug_colour_select_g << 8 |
+                    debug_colour_select_b;
+                game_area.redraw |= REDRAW_EVERYTHING;
+#else
+                volume_down ();
+#endif
+                break;
+            case ACTION_MODIFIER1:
+            case ACTION_MODIFIER2:
+            case ACTION_MODIFIER3:
+            case ACTION_MODIFIER4:
+                break;
+            default:
+                break;
+        }
+    }
+    else if (game_mode == INTRO_SCREEN)
+    {
+        /***************************************************************************
+         * INTRO SCREEN                                                            *
+         ***************************************************************************/
+        /* Get none or one user action and quit on SDL_QUIT */
+        quit_game |=
+            get_user_action (&actionid, TRUE, &gua_device, &gua_id,
+                    &gua_state);
+
+        /* Reset the demo mode timeout if a key was pressed */
+        if (actionid != UNDEFINED)
+            demo_mode (DEMO_MODE_TIMEOUT_INITIALISE, 0);
+
+        /* Decrement the demo mode timeout which will automatically force
+           demo mode after a predetermined period of time */
+        demo_mode (DEMO_MODE_TIMEOUT_DECREMENT, 0);
+
+        switch (actionid)
+        {
+            case ACTION_UP:
+                introscreenselecteditem--;
+                /*#ifndef HAVE_DESIGNER*/
+                if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_DESIGNER)
+                    introscreenselecteditem--;
+                /*#endif*/
+                if (introscreenselecteditem < 0)
+                    introscreenselecteditem = INTRO_SCREEN_MENU_ITEM_COUNT - 1;
+                intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                break;
+            case ACTION_DOWN:
+                introscreenselecteditem++;
+                /*#ifndef HAVE_DESIGNER*/
+                if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_DESIGNER)
+                    introscreenselecteditem++;
+                /*#endif*/
+                if (introscreenselecteditem >= INTRO_SCREEN_MENU_ITEM_COUNT)
+                    introscreenselecteditem = 0;
+                intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                break;
+            case ACTION_LEFT:
+                if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL ||
+                        introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
+                {
+                    manage_intro_screen_decrement (introscreenselecteditem);
+                }
+                break;
+            case ACTION_RIGHT:
+                if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL ||
+                        introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
+                {
+                    manage_intro_screen_increment (introscreenselecteditem);
+                }
+                break;
+            case ACTION_RESTART:
+                break;
+            case ACTION_SHOOT_UP:
+            case ACTION_SHOOT_DOWN:
+            case ACTION_SHOOT_LEFT:
+            case ACTION_SHOOT_RIGHT:
+                break;
+            case ACTION_SELECT:
+                manage_intro_screen_select (introscreenselecteditem);
+                break;
+            case ACTION_EXIT:
+                introscreenselecteditem = INTRO_SCREEN_MENU_ITEM_EXIT;
+                intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                break;
+            case ACTION_HELP:
+                manage_intro_screen_select (INTRO_SCREEN_MENU_ITEM_HELP);
+                break;
+            case ACTION_OPTIONS:
+                manage_intro_screen_select (INTRO_SCREEN_MENU_ITEM_OPTIONS);
+                break;
+            case ACTION_TOGGLE_FULLSCREEN:
+                toggle_fullscreen (&video.fullscreen);
+                break;
+            case ACTION_PREVIOUS_LEVEL:
+                manage_intro_screen_decrement (INTRO_SCREEN_MENU_ITEM_LEVEL);
+                break;
+            case ACTION_NEXT_LEVEL:
+                manage_intro_screen_increment (INTRO_SCREEN_MENU_ITEM_LEVEL);
+                break;
+            case ACTION_PREVIOUS_PACK:
+                manage_intro_screen_decrement (INTRO_SCREEN_MENU_ITEM_PACK);
+                break;
+            case ACTION_NEXT_PACK:
+                manage_intro_screen_increment (INTRO_SCREEN_MENU_ITEM_PACK);
+                break;
+            case ACTION_HOME:
+                if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL)
+                {
+                    /* First level */
+                    level_packs[selected_pack].level_selected = 1;
+                    intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                }
+                else if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
+                {
+                    /* First pack */
+                    level_packs[selected_pack].selected = FALSE;
+                    selected_pack = 0;
+                    level_packs[selected_pack].selected = TRUE;
+                    intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                }
+                break;
+            case ACTION_END:
+                if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL)
+                {
+                    /* Last level */
+                    level_packs[selected_pack].level_selected =
+                        level_packs[selected_pack].level_reached;
+                    intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                }
+                else if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
+                {
+                    /* Last pack */
+                    level_packs[selected_pack].selected = FALSE;
+                    selected_pack = found_pack_count - 1;
+                    level_packs[selected_pack].selected = TRUE;
+                    intro_screen.redraw |= REDRAW_INTERMEDIATE;
+                }
+                break;
+            case ACTION_PAGEUP:
+            case ACTION_PAGEDOWN:
+                break;
+            case ACTION_TOGGLE_DESIGNER:
+                manage_intro_screen_select (INTRO_SCREEN_MENU_ITEM_DESIGNER);
+                break;
+            case ACTION_VOLUP:
+                volume_up ();
+                break;
+            case ACTION_VOLDOWN:
+                volume_down ();
+                break;
+            case ACTION_MODIFIER1:
+            case ACTION_MODIFIER2:
+            case ACTION_MODIFIER3:
+            case ACTION_MODIFIER4:
+                break;
+            default:
+                break;
+        }
+    }
+    else if (game_mode == END_SCREEN)
+    {
+        /***************************************************************************
+         * END SCREEN                                                              *
+         ***************************************************************************/
+        /* Get none or one user action and quit on SDL_QUIT */
+        quit_game |=
+            get_user_action (&actionid, TRUE, &gua_device, &gua_id,
+                    &gua_state);
+        switch (actionid)
+        {
+            case ACTION_UP:
+            case ACTION_DOWN:
+            case ACTION_LEFT:
+            case ACTION_RIGHT:
+            case ACTION_RESTART:
+            case ACTION_SHOOT_UP:
+            case ACTION_SHOOT_DOWN:
+            case ACTION_SHOOT_LEFT:
+            case ACTION_SHOOT_RIGHT:
+            case ACTION_SELECT:
+                break;
+            case ACTION_EXIT:
+                game_mode = INTRO_SCREEN;
+                intro_screen.redraw |= REDRAW_INITIALISE;
+                break;
+            case ACTION_HELP:
+            case ACTION_OPTIONS:
+                break;
+            case ACTION_TOGGLE_FULLSCREEN:
+                toggle_fullscreen (&video.fullscreen);
+                break;
+            case ACTION_PREVIOUS_LEVEL:
+            case ACTION_NEXT_LEVEL:
+            case ACTION_PREVIOUS_PACK:
+            case ACTION_NEXT_PACK:
+            case ACTION_HOME:
+            case ACTION_END:
+            case ACTION_PAGEUP:
+            case ACTION_PAGEDOWN:
+            case ACTION_TOGGLE_DESIGNER:
+                break;
+            case ACTION_VOLUP:
+                volume_up ();
+                break;
+            case ACTION_VOLDOWN:
+                volume_down ();
+                break;
+            case ACTION_MODIFIER1:
+            case ACTION_MODIFIER2:
+            case ACTION_MODIFIER3:
+            case ACTION_MODIFIER4:
+                break;
+            default:
+                break;
+        }
+    }
+    else if (game_mode == HELP_SCREEN)
+    {
+        /***************************************************************************
+         * HELP SCREEN                                                             *
+         ***************************************************************************/
+        /* Get none or one user action and quit on SDL_QUIT */
+        quit_game |=
+            get_user_action (&actionid, TRUE, &gua_device, &gua_id,
+                    &gua_state);
+        switch (actionid)
+        {
+            case ACTION_UP:
+            case ACTION_DOWN:
+                break;
+            case ACTION_LEFT:
+                helppageselecteditem--;
+                if (helppage > 0 && helppageselecteditem < 0)
+                {
+                    helppage--;
+                    helppageselecteditem = 2;
+                    help_screen.redraw |= REDRAW_EVERYTHING;
+                }
+                else
+                {
+                    if (helppage == 0 && helppageselecteditem < 1)
+                        helppageselecteditem = 1;
+                    help_screen.redraw |= REDRAW_INTERMEDIATE;
+                }
+                break;
+            case ACTION_RIGHT:
+                helppageselecteditem++;
+                if (helppage < HELP_SCREEN_PAGES - 1
+                        && helppageselecteditem > 2)
+                {
+                    helppage++;
+                    helppageselecteditem = 0;
+                    help_screen.redraw |= REDRAW_EVERYTHING;
+                }
+                else
+                {
+                    if (helppage == HELP_SCREEN_PAGES - 1
+                            && helppageselecteditem > 1)
+                        helppageselecteditem = 1;
+                    help_screen.redraw |= REDRAW_INTERMEDIATE;
+                }
+                break;
+            case ACTION_RESTART:
+            case ACTION_SHOOT_UP:
+            case ACTION_SHOOT_DOWN:
+            case ACTION_SHOOT_LEFT:
+            case ACTION_SHOOT_RIGHT:
+                break;
+            case ACTION_SELECT:
+                manage_help_select (helppageselecteditem);
+                break;
+            case ACTION_EXIT:
+                manage_help_select (1);
+                break;
+            case ACTION_HELP:
+            case ACTION_OPTIONS:
+                break;
+            case ACTION_TOGGLE_FULLSCREEN:
+                toggle_fullscreen (&video.fullscreen);
+                break;
+            case ACTION_PREVIOUS_LEVEL:
+            case ACTION_NEXT_LEVEL:
+            case ACTION_PREVIOUS_PACK:
+            case ACTION_NEXT_PACK:
+                break;
+            case ACTION_HOME:
+                /* First page */
+                if (helppage != 0)
+                {
+                    helppage = 0;
+                    helppageselecteditem = 1;
+                    help_screen.redraw |= REDRAW_EVERYTHING;
+                }
+                break;
+            case ACTION_END:
+                /* Last page */
+                if (helppage != HELP_SCREEN_PAGES - 1)
+                {
+                    helppage = HELP_SCREEN_PAGES - 1;
+                    helppageselecteditem = 1;
+                    help_screen.redraw |= REDRAW_EVERYTHING;
+                }
+                break;
+            case ACTION_PAGEUP:
+                /* Previous page */
+                manage_help_select (0);
+                break;
+            case ACTION_PAGEDOWN:
+                /* Next page */
+                manage_help_select (2);
+                break;
+            case ACTION_TOGGLE_DESIGNER:
+                break;
+            case ACTION_VOLUP:
+                volume_up ();
+                break;
+            case ACTION_VOLDOWN:
+                volume_down ();
+                break;
+            case ACTION_MODIFIER1:
+            case ACTION_MODIFIER2:
+            case ACTION_MODIFIER3:
+            case ACTION_MODIFIER4:
+                break;
+            default:
+                break;
+        }
+    }
+    else if (game_mode == OPTIONS_SCREEN)
+    {
+        /***************************************************************************
+         * OPTIONS SCREEN                                                          *
+         ***************************************************************************/
+        /* All the screens are laid out like this no matter what's displayed :-
+           --------------------
+           | 0                | options[OPTIONS_COUNT] is an array of all the options spread across all
+           | .                | the pages. Each element is either TRUE if there is a selectable option
+           | .                | present or FALSE if it is non-selectable i.e. a piece of text or something
+           | 8                | that occupies that space. Each option has a unique id which is an index into
+           |                  | this array and is used to identify the option when the user presses a control
+           | 9   10    11  12 | that may modify it. This array is also used in screen.c to assist in building
+           | <  Save  Exit  > | the pages. Additionally the selected menu item is recorded for each page in
+           -------------------- optionspageselecteditem[] with the current page recorded in optionspage.
+           */
+
+        /* Are we waiting for a key/button press to assign to a control? */
+        if (getkey_timeout)
+        {
+            getkey_timeout--;
+            if (getkey_timeout == 0)
+            {
+                strcpy (temp_msg_box.name, MESSAGE_BOX_GETKEY_ERROR_ID);
+                strcpy (temp_msg_box.message, txt_No_input_was_detected);
+                temp_msg_box.timeout = DELAY_MESSAGE_BOX_GETKEY_ERROR;
+                temp_msg_box.dynamic = TRUE;
+                temp_msg_box.w = temp_msg_box.h = 0;
+                show_message_box (MESSAGE_BOX_SUB_INITIALISE,
+                        &temp_msg_box);
+            }
+            else
+            {
+                /* Get none or one user action and quit on SDL_QUIT */
+                quit_game |=
+                    get_user_action (&actionid, FALSE, &gua_device, &gua_id,
+                            &gua_state);
+                /* Record the pressed/released state changes and look for a release. This is how it works :-
+                   If the user pressed the confirm control to initialise reassignment then the initial state
+                   is pressed and so to register a new key we will be looking for a release as the 3rd state
+                   change.
+                   If the user pressed and released the primary click control to initialise reassignment then
+                   the initial state is released and so to register a new key we will be looking for a release
+                   as the 2nd state change.
+                   The difference is because click activates on release */
+                if ((gua_state == SDL_PRESSED || gua_state == SDL_RELEASED)
+                        && getkey_state != gua_state)
+                {
+                    getkey_state = gua_state;
+                    getkey_count++;	/* Count the state changes */
+                    if (getkey_state == SDL_RELEASED && getkey_count >= 2)
+                    {
+                        show_message_box (MESSAGE_BOX_SUB_KILL, NULL);	/* Kill the message box */
+                        getkey_timeout = 0;	/* Kill the timeout */
+                        /* Store the new control */
+                        temp_user_controls[optionspageselecteditem
+                            [optionspage] + (optionspage -
+                                    OPTIONS_ACTION_UP / 13) * 9].device = gua_device;
+                        temp_user_controls[optionspageselecteditem
+                            [optionspage] + (optionspage -
+                                    OPTIONS_ACTION_UP / 13) * 9].id = gua_id;
+                        options_screen.redraw |= REDRAW_INTERMEDIATE;
+                    }
+                }
+            }
+            /* No, so resume normal action servicing */
+        }
+        else
+        {
+            /* Get none or one user action and quit on SDL_QUIT */
+            quit_game |=
+                get_user_action (&actionid, TRUE, &gua_device, &gua_id,
+                        &gua_state);
+            switch (actionid)
+            {
+                case ACTION_UP:
+                    do
+                    {
+                        if (optionspageselecteditem[optionspage] > 8)
+                            optionspageselecteditem[optionspage] =
+                                OPTIONS_MENUPOS_LEFT;
+                        optionspageselecteditem[optionspage]--;
+                        if (optionspageselecteditem[optionspage] < 0)
+                            optionspageselecteditem[optionspage] =
+                                OPTIONS_MENUPOS_SAVE;
+                    }
+                    while (!options
+                            [optionspage * 13 +
+                            optionspageselecteditem[optionspage]]);
+                    options_screen.redraw |= REDRAW_INTERMEDIATE;
+                    break;
+                case ACTION_DOWN:
+                    do
+                    {
+                        if (optionspageselecteditem[optionspage] > 8)
+                            optionspageselecteditem[optionspage] = -1;
+                        optionspageselecteditem[optionspage]++;
+                        if (optionspageselecteditem[optionspage] > 8)
+                            optionspageselecteditem[optionspage] =
+                                OPTIONS_MENUPOS_SAVE;
+                    }
+                    while (!options
+                            [optionspage * 13 +
+                            optionspageselecteditem[optionspage]]);
+                    options_screen.redraw |= REDRAW_INTERMEDIATE;
+                    break;
+                case ACTION_LEFT:
+                    if (optionspageselecteditem[optionspage] >
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        if (options
+                                [optionspage * 13 +
+                                optionspageselecteditem[optionspage] - 1])
+                            optionspageselecteditem[optionspage]--;
+                        options_screen.redraw |= REDRAW_INTERMEDIATE;
+                    }
+                    else if (optionspageselecteditem[optionspage] ==
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        /* Previous page */
+                        if (optionspage > 0)
+                        {
+                            optionspageselecteditem[--optionspage] =
+                                OPTIONS_MENUPOS_RIGHT;
+                            options_screen.redraw |= REDRAW_EVERYTHING;
+                        }
+                    }
+                    else if (optionspageselecteditem[optionspage] <
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        manage_options_decrement (optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage]);
+                    }
+                    break;
+                case ACTION_RIGHT:
+                    if (optionspageselecteditem[optionspage] >=
+                            OPTIONS_MENUPOS_LEFT
+                            && optionspageselecteditem[optionspage] <
+                            OPTIONS_MENUPOS_RIGHT)
+                    {
+                        if (options
+                                [optionspage * 13 +
+                                optionspageselecteditem[optionspage] + 1])
+                            optionspageselecteditem[optionspage]++;
+                        options_screen.redraw |= REDRAW_INTERMEDIATE;
+                    }
+                    else if (optionspageselecteditem[optionspage] ==
+                            OPTIONS_MENUPOS_RIGHT)
+                    {
+                        /* Next page */
+                        if (optionspage < OPTIONS_SCREEN_PAGES - 1)
+                        {
+                            optionspageselecteditem[++optionspage] =
+                                OPTIONS_MENUPOS_LEFT;
+                            options_screen.redraw |= REDRAW_EVERYTHING;
+                        }
+                    }
+                    else if (optionspageselecteditem[optionspage] <
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        manage_options_increment (optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage]);
+                    }
+                    break;
+                case ACTION_RESTART:
+                    if (optionspageselecteditem[optionspage] <
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        /* Reset a control */
+                        if (optionspage * 13 +
+                                optionspageselecteditem[optionspage] >=
+                                OPTIONS_ACTION_UP
+                                && optionspage * 13 +
+                                optionspageselecteditem[optionspage] <=
+                                OPTIONS_ACTION_PRIMARY_CLICK)
+                        {
+                            temp_user_controls[optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage] -
+                                OPTIONS_ACTION_UP -
+                                (optionspage - 4) * 4].device =
+                                UNDEFINED;
+                            temp_user_controls[optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage] -
+                                OPTIONS_ACTION_UP -
+                                (optionspage - 4) * 4].id =
+                                UNDEFINED;
+                            temp_user_controls[optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage] -
+                                OPTIONS_ACTION_UP -
+                                (optionspage - 4) * 4].mod =
+                                UNDEFINED;
+                        }
+                        options_screen.redraw |= REDRAW_INTERMEDIATE;
+                    }
+                    break;
+                case ACTION_SHOOT_UP:
+                case ACTION_SHOOT_DOWN:
+                case ACTION_SHOOT_LEFT:
+                case ACTION_SHOOT_RIGHT:
+                    break;
+                case ACTION_SELECT:
+                    /* Unlike the others, this will also need to be entirely manipulatable via the pointer
+                       and so it is additionally sent OPTIONS_MENUPOS_LEFT to OPTIONS_MENUPOS_RIGHT */
+                    manage_options_select (optionspage * 13 +
+                            optionspageselecteditem
+                            [optionspage]);
+                    break;
+                case ACTION_EXIT:
+                    manage_options_select (OPTIONS_MENUPOS_EXIT);	/* Any enabled exit will suffice */
+                    break;
+                case ACTION_HELP:
+                case ACTION_OPTIONS:
+                    break;
+                case ACTION_TOGGLE_FULLSCREEN:
+                    toggle_fullscreen (&video.fullscreen);
+                    break;
+                case ACTION_PREVIOUS_LEVEL:
+                case ACTION_NEXT_LEVEL:
+                case ACTION_PREVIOUS_PACK:
+                case ACTION_NEXT_PACK:
+                    break;
+                case ACTION_HOME:
+                    if (optionspageselecteditem[optionspage] >=
+                            OPTIONS_MENUPOS_LEFT
+                            && optionspageselecteditem[optionspage] <=
+                            OPTIONS_MENUPOS_RIGHT)
+                    {
+                        optionspage = 0;
+                        optionspageselecteditem[optionspage] =
+                            OPTIONS_MENUPOS_SAVE;
+                        options_screen.redraw |= REDRAW_EVERYTHING;
+                    }
+                    else if (optionspageselecteditem[optionspage] <
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        manage_options_first (optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage]);
+                    }
+                    break;
+                case ACTION_END:
+                    if (optionspageselecteditem[optionspage] >=
+                            OPTIONS_MENUPOS_LEFT
+                            && optionspageselecteditem[optionspage] <=
+                            OPTIONS_MENUPOS_RIGHT)
+                    {
+                        optionspage = OPTIONS_SCREEN_PAGES - 1;
+                        optionspageselecteditem[optionspage] =
+                            OPTIONS_MENUPOS_EXIT;
+                        options_screen.redraw |= REDRAW_EVERYTHING;
+                    }
+                    else if (optionspageselecteditem[optionspage] <
+                            OPTIONS_MENUPOS_LEFT)
+                    {
+                        manage_options_last (optionspage * 13 +
+                                optionspageselecteditem
+                                [optionspage]);
+                    }
+                    break;
+                case ACTION_PAGEUP:
+                    /* Previous page */
+                    manage_options_select (13 + OPTIONS_MENUPOS_LEFT);	/* Use <back on page1 as page0's is disabled */
+                    break;
+                case ACTION_PAGEDOWN:
+                    /* Next page */
+                    manage_options_select (OPTIONS_MENUPOS_RIGHT);	/* Any enabled next> will suffice */
+                    break;
+                case ACTION_TOGGLE_DESIGNER:
+                    break;
+                case ACTION_VOLUP:
+                    volume_up ();
+                    break;
+                case ACTION_VOLDOWN:
+                    volume_down ();
+                    break;
+                case ACTION_MODIFIER1:
+                case ACTION_MODIFIER2:
+                case ACTION_MODIFIER3:
+                case ACTION_MODIFIER4:
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    /* [Re]draw the screen and update the game objects if GAME_ON */
+    if (game_mode == GAME_ON)
+    {
+        /* Update all the game objects */
+        update_game ();
+        /* [Re]draw the screen */
+        game_area.redraw |= REDRAW_ANIMATED;
+        show_game_area ();	/* This happens here and nowhere else */
+        /* If the fade is active then show it */
+        show_game_area_fade (FADE_SUB_SHOW, 0);
+
+#ifdef DEBUG_COLOUR_SELECT
+        show_level_colour (debug_colour_select_r, debug_colour_select_g,
+                debug_colour_select_b,
+                debug_colour_select_component);
+#endif
+    }
+    else if (game_mode == DESIGNER_ON)
+    {
+        /* animate konstruktor stuff */
+        konstruktor_animate ();
+        game_area.redraw |= REDRAW_ANIMATED;
+        konstruktor_show_game_area ();
+
+    }	
+    else if (game_mode == INTRO_SCREEN)
+    {
+        /* [Re]draw the screen */
+        intro_screen.redraw |= REDRAW_ANIMATED;
+        show_introscreen ();	/* This happens here and nowhere else */
+    }
+    else if (game_mode == END_SCREEN)
+    {
+        /* [Re]draw the screen */
+        show_endscreen ();	/* This happens here and nowhere else */
+    }
+    else if (game_mode == HELP_SCREEN)
+    {
+        /* [Re]draw the screen */
+        help_screen.redraw |= REDRAW_ANIMATED;
+        show_helpscreen ();	/* This happens here and nowhere else */
+    }
+    else if (game_mode == OPTIONS_SCREEN)
+    {
+        /* [Re]draw the screen */
+        options_screen.redraw |= REDRAW_ANIMATED;
+        show_optionsscreen ();	/* This happens here and nowhere else */
+    }
+
+    /* Render any ROB engine objects */
+    ROB_RenderObjects ();
+
+    /* If there's a message box active then show it */
+    show_message_box (MESSAGE_BOX_SUB_SHOW, NULL);
+
+    /* Update the screen */
+    SDL_Flip (screen);
+
+#ifndef EMSCRIPTEN
+    /* I think I should explain how the timing works as people may think I'm simply calling SDL_Delay(10)
+       every cycle and then continuing which would be OKish if the workload was always the same.
+       There is an SDL timer that sets the game_next_cycle flag every 20Hz (slow), 25Hz (normal) or 33Hz (fast).
+       This game is far from being CPU intensive especially since only small portions of the screen are being
+       updated when needed, so 90%+ of the time is spent in the while loop waiting for the game_next_cycle
+       flag to be set by the SDL timer. The SDL_Delay(game_cycle_delay) within the while loop is simply passing
+       control to the OS to service other tasks. If there was no delay here then this game would be a CPU hog.
+       I should mention that on my computer I can do SDL_Delay(0) but other computers will need a minimum of
+       10ms, therefore game_cycle_delay is set to 10ms by default but can be set to something else by modifying
+       [game_cycle_delay] in the .gnurobborc file in your home folder. I expect this will never be modified */
+
+    /* Is there a cycle limit in place? */
+    if (game_cycle_limit)
+    { 
+        /* Wait until the timer sets the flag before proceeding */
+
+        while (!game_next_cycle) 
+            SDL_Delay (game_cycle_delay);	/* Robbo spends 90%+ of his time in this loop :) */
+
+        game_next_cycle = FALSE;
+
+    }
+
+#endif
+    cycle_count++;
+
+    if (game_mode != INTRO_SCREEN)
+        demo_mode (DEMO_MODE_TIMEOUT_INITIALISE, 0);	/* Easier to do it once here */
+
+}
+
+
   int
 main (int argc, char *argv[])
 {
-  int count, result, actionid;
+    int result, count;
 
 #ifdef DEBUG_SOUND2
 	int scnt;
@@ -124,7 +1193,6 @@ main (int argc, char *argv[])
 #ifdef DEBUG_DUMP_VM_USAGE
   char vmusage[80];
 #endif
-  MSG_Box temp_msg_box;
   time_t t;
 
 #ifdef DEBUG_MAIN
@@ -525,1065 +1593,12 @@ main (int argc, char *argv[])
   printf ("*** Stop %s ***\n", __func__);
 #endif
 
+#ifdef EMSCRIPTEN
+  emscripten_set_main_loop(main_loop_iteration, 0, 1);
+#else
   while (!quit_game)
-    {
-		/***************************************************************************
-		 * DESIGNER_ON                                                             *
-		 ***************************************************************************/
-
-      if (game_mode == DESIGNER_ON)
-	{
-	  quit_game |= get_user_action (&actionid, TRUE, &gua_device, &gua_id,
-					&gua_state);
-	   if (actionid == ACTION_EXIT)
-	    {
-			if(K_exit==TRUE) {
-			    konstruktor_end ();
-				game_mode = GAME_ON;
-				K_exit=FALSE;
-			} 
-			else
-			{
-				K_exit=TRUE;
-				sprintf(infostring, "Exit designer - select again to exit");
-				inforedraw = 1;
-			}
-	    } else {
-			
-			if(actionid!=-1) {
-				if(K_exit==TRUE) {
-					inforedraw=1;
-					sprintf(infostring,"  ");
-				}
-				K_exit=FALSE;
-			}
-		}
-	  switch (actionid)
-	    {
-	    case ACTION_TOGGLE_FULLSCREEN:
-	      toggle_fullscreen (&video.fullscreen);
-	      break;
-	    case ACTION_PREVIOUS_LEVEL:
-	      if (level_packs[selected_pack].level_selected > 1)
-		{
-		  level_packs[selected_pack].level_selected--;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  konstruktor_init ();
-		}
-	      break;
-	    case ACTION_NEXT_LEVEL:
-	      if (level_packs[selected_pack].level_selected <
-		  level_packs[selected_pack].last_level)
-		{
-		  level_packs[selected_pack].level_selected++;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  konstruktor_init ();
-		}
-	      break;
-	    case ACTION_PREVIOUS_PACK:
-	      if (selected_pack > 0)
-		{
-		  level_packs[selected_pack].selected = FALSE;
-		  selected_pack--;
-		  level_packs[selected_pack].selected = TRUE;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  konstruktor_init ();
-		}
-	      break;
-	    case ACTION_NEXT_PACK:
-	      if (selected_pack < found_pack_count - 1)
-		{
-		  level_packs[selected_pack].selected = FALSE;
-		  selected_pack++;
-		  level_packs[selected_pack].selected = TRUE;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  konstruktor_init ();
-		}
-	      break;
-	    case ACTION_PRIMARY_CLICK:
-	      konstruktor_click ();
-	      break;
-	    case ACTION_SCROLL_UP:
-	      for (count = 0; count < 4; count++) konstruktor_scroll (0);
-	      break;
-	    case ACTION_UP:
-	      konstruktor_scroll (0);
-	      break;
-	    case ACTION_SCROLL_DOWN:
-	      for (count = 0; count < 4; count++) konstruktor_scroll (2);
-	      break;
-	    case ACTION_DOWN:
-	      konstruktor_scroll (2);
-	      break;
-	    case ACTION_LEFT:
-	      konstruktor_scroll (1);
-	      break;
-	    case ACTION_RIGHT:
-	      konstruktor_scroll (3);
-	      break;
-/*	    case ACTION_EXIT:
-	      konstruktor_end ();
-	      game_mode = GAME_ON;
-	      break;
-*/
-
-		  case ACTION_VOLUP:
-#ifdef DEBUG_COLOUR_SELECT
-	      if (debug_colour_select_component == 0)
-		{
-		  inc_colour_component (&debug_colour_select_r);
-		}
-	      else if (debug_colour_select_component == 1)
-		{
-		  inc_colour_component (&debug_colour_select_g);
-		}
-	      else if (debug_colour_select_component == 2)
-		{
-		  inc_colour_component (&debug_colour_select_b);
-		}
-	      level.colour_override =
-		debug_colour_select_r << 16 | debug_colour_select_g << 8 |
-		debug_colour_select_b;
-	      game_area.redraw |= REDRAW_EVERYTHING;
-#else
-	      volume_up ();
+      main_loop_iteration();
 #endif
-	      break;
-	    case ACTION_VOLDOWN:
-#ifdef DEBUG_COLOUR_SELECT
-	      if (debug_colour_select_component == 0)
-		{
-		  dec_colour_component (&debug_colour_select_r);
-		}
-	      else if (debug_colour_select_component == 1)
-		{
-		  dec_colour_component (&debug_colour_select_g);
-		}
-	      else if (debug_colour_select_component == 2)
-		{
-		  dec_colour_component (&debug_colour_select_b);
-		}
-	      level.colour_override =
-		debug_colour_select_r << 16 | debug_colour_select_g << 8 |
-		debug_colour_select_b;
-	      game_area.redraw |= REDRAW_EVERYTHING;
-#else
-	      volume_down ();
-#endif
-	      break;
-	    }
-
-	 
-	}
-      else if (game_mode == GAME_ON)
-	{
-		/***************************************************************************
-		 * GAME ON                                                                 *
-		 ***************************************************************************/
-	  /* Get none or one user action and quit on SDL_QUIT */
-	  quit_game |=
-	    get_user_action (&actionid, TRUE, &gua_device, &gua_id,
-			     &gua_state);
-
-#ifdef DEBUG_RECORD_DEMO
-	  if (actionid != UNDEFINED && !demo_mode (DEMO_MODE_IS_ACTIVE, 0)
-	      && robbo.moved == 0)
-	    demo_mode (DEMO_MODE_RECORD, actionid);
-#endif
-
-	  /* The restart timeout counts down to a forced restart such as following a BIG_BOOM */
-	  if (restart_timeout)
-	    {
-	      restart_timeout--;
-	    }
-	  else if (restart_timeout == 0)
-	    {
-	      restart_timeout--;
-	      actionid = ACTION_RESTART;
-	    }
-
-	  /* If demo mode is active then substitute the actionid with one from the demo */
-	  if (demo_mode (DEMO_MODE_IS_ACTIVE, 0))
-	    {
-	      if (actionid == UNDEFINED)
-		{
-		  if (robbo.moved == 0)
-		    actionid = demo_mode (DEMO_MODE_PLAYBACK, 0);
-		}
-	      else
-		{
-		  actionid = ACTION_EXIT;	/* Quit demo mode on any action */
-		}
-	    }
-
-	  switch (actionid)
-	    {
-	    case ACTION_UP:
-	    case ACTION_DOWN:
-	    case ACTION_LEFT:
-	    case ACTION_RIGHT:
-	    case ACTION_RESTART:
-	    case ACTION_SHOOT_UP:
-	    case ACTION_SHOOT_DOWN:
-	    case ACTION_SHOOT_LEFT:
-	    case ACTION_SHOOT_RIGHT:
-	    case ACTION_SELECT:
-	    case ACTION_EXIT:
-	    case ACTION_HELP:
-	    case ACTION_OPTIONS:
-#ifdef HAVE_DESIGNER
-	    case ACTION_TOGGLE_DESIGNER:
-#endif
-	      manage_game_on_input (actionid);
-	      break;
-	    case ACTION_TOGGLE_FULLSCREEN:
-	      toggle_fullscreen (&video.fullscreen);
-	      break;
-	    case ACTION_PREVIOUS_LEVEL:
-	      if (level_packs[selected_pack].level_selected > 1)
-		{
-		  level_packs[selected_pack].level_selected--;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  if (level_init ())
-		    {
-		      game_mode = INTRO_SCREEN;
-		      intro_screen.redraw |= REDRAW_INITIALISE;
-		    }
-		  else
-		    {
-		      game_area.redraw |= REDRAW_EVERYTHING;
-		    }
-		}
-	      break;
-	    case ACTION_NEXT_LEVEL:
-	      if (level_packs[selected_pack].level_selected <
-		  level_packs[selected_pack].level_reached)
-		{
-		  level_packs[selected_pack].level_selected++;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  if (level_init ())
-		    {
-		      game_mode = INTRO_SCREEN;
-		      intro_screen.redraw |= REDRAW_INITIALISE;
-		    }
-		  else
-		    {
-		      game_area.redraw |= REDRAW_EVERYTHING;
-		    }
-		}
-	      break;
-	    case ACTION_PREVIOUS_PACK:
-	      if (selected_pack > 0)
-		{
-		  level_packs[selected_pack].selected = FALSE;
-		  selected_pack--;
-		  level_packs[selected_pack].selected = TRUE;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  if (level_init ())
-		    {
-		      game_mode = INTRO_SCREEN;
-		      intro_screen.redraw |= REDRAW_INITIALISE;
-		    }
-		  else
-		    {
-		      game_area.redraw |= REDRAW_EVERYTHING;
-		    }
-		}
-	      break;
-	    case ACTION_NEXT_PACK:
-	      if (selected_pack < found_pack_count - 1)
-		{
-		  level_packs[selected_pack].selected = FALSE;
-		  selected_pack++;
-		  level_packs[selected_pack].selected = TRUE;
-		  /* Cancel any active or pending fades */
-		  restart_timeout = -1;
-		  show_game_area_fade (FADE_SUB_KILL, 0);
-		  if (level_init ())
-		    {
-		      game_mode = INTRO_SCREEN;
-		      intro_screen.redraw |= REDRAW_INITIALISE;
-		    }
-		  else
-		    {
-		      game_area.redraw |= REDRAW_EVERYTHING;
-		    }
-		}
-	      break;
-	    case ACTION_HOME:
-	    case ACTION_END:
-	      break;
-	    case ACTION_PAGEUP:
-#ifdef DEBUG_COLOUR_SELECT
-	      debug_colour_select_component--;	/* R = 0, G = 1, B = 2 */
-	      if (debug_colour_select_component < 0)
-		debug_colour_select_component = 2;
-#endif
-	      break;
-	    case ACTION_PAGEDOWN:
-#ifdef DEBUG_COLOUR_SELECT
-	      debug_colour_select_component++;	/* R = 0, G = 1, B = 2 */
-	      if (debug_colour_select_component > 2)
-		debug_colour_select_component = 0;
-#endif
-	      break;
-	    case ACTION_VOLUP:
-#ifdef DEBUG_COLOUR_SELECT
-	      if (debug_colour_select_component == 0)
-		{
-		  inc_colour_component (&debug_colour_select_r);
-		}
-	      else if (debug_colour_select_component == 1)
-		{
-		  inc_colour_component (&debug_colour_select_g);
-		}
-	      else if (debug_colour_select_component == 2)
-		{
-		  inc_colour_component (&debug_colour_select_b);
-		}
-	      level.colour_override =
-		debug_colour_select_r << 16 | debug_colour_select_g << 8 |
-		debug_colour_select_b;
-	      game_area.redraw |= REDRAW_EVERYTHING;
-#else
-	      volume_up ();
-#endif
-	      break;
-	    case ACTION_VOLDOWN:
-#ifdef DEBUG_COLOUR_SELECT
-	      if (debug_colour_select_component == 0)
-		{
-		  dec_colour_component (&debug_colour_select_r);
-		}
-	      else if (debug_colour_select_component == 1)
-		{
-		  dec_colour_component (&debug_colour_select_g);
-		}
-	      else if (debug_colour_select_component == 2)
-		{
-		  dec_colour_component (&debug_colour_select_b);
-		}
-	      level.colour_override =
-		debug_colour_select_r << 16 | debug_colour_select_g << 8 |
-		debug_colour_select_b;
-	      game_area.redraw |= REDRAW_EVERYTHING;
-#else
-	      volume_down ();
-#endif
-	      break;
-	    case ACTION_MODIFIER1:
-	    case ACTION_MODIFIER2:
-	    case ACTION_MODIFIER3:
-	    case ACTION_MODIFIER4:
-	      break;
-	    default:
-	      break;
-	    }
-	}
-      else if (game_mode == INTRO_SCREEN)
-	{
-		/***************************************************************************
-		 * INTRO SCREEN                                                            *
-		 ***************************************************************************/
-	  /* Get none or one user action and quit on SDL_QUIT */
-	  quit_game |=
-	    get_user_action (&actionid, TRUE, &gua_device, &gua_id,
-			     &gua_state);
-
-	  /* Reset the demo mode timeout if a key was pressed */
-	  if (actionid != UNDEFINED)
-	    demo_mode (DEMO_MODE_TIMEOUT_INITIALISE, 0);
-
-	  /* Decrement the demo mode timeout which will automatically force
-	     demo mode after a predetermined period of time */
-	  demo_mode (DEMO_MODE_TIMEOUT_DECREMENT, 0);
-
-	  switch (actionid)
-	    {
-	    case ACTION_UP:
-	      introscreenselecteditem--;
-/*#ifndef HAVE_DESIGNER*/
-	      if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_DESIGNER)
-	        introscreenselecteditem--;
-/*#endif*/
-	      if (introscreenselecteditem < 0)
-		introscreenselecteditem = INTRO_SCREEN_MENU_ITEM_COUNT - 1;
-	      intro_screen.redraw |= REDRAW_INTERMEDIATE;
-	      break;
-	    case ACTION_DOWN:
-	      introscreenselecteditem++;
-/*#ifndef HAVE_DESIGNER*/
-	      if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_DESIGNER)
-	        introscreenselecteditem++;
-/*#endif*/
-	      if (introscreenselecteditem >= INTRO_SCREEN_MENU_ITEM_COUNT)
-		introscreenselecteditem = 0;
-	      intro_screen.redraw |= REDRAW_INTERMEDIATE;
-	      break;
-	    case ACTION_LEFT:
-	      if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL ||
-		  introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
-		{
-		  manage_intro_screen_decrement (introscreenselecteditem);
-		}
-	      break;
-	    case ACTION_RIGHT:
-	      if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL ||
-		  introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
-		{
-		  manage_intro_screen_increment (introscreenselecteditem);
-		}
-	      break;
-	    case ACTION_RESTART:
-	      break;
-	    case ACTION_SHOOT_UP:
-	    case ACTION_SHOOT_DOWN:
-	    case ACTION_SHOOT_LEFT:
-	    case ACTION_SHOOT_RIGHT:
-	      break;
-	    case ACTION_SELECT:
-	      manage_intro_screen_select (introscreenselecteditem);
-	      break;
-	    case ACTION_EXIT:
-	      introscreenselecteditem = INTRO_SCREEN_MENU_ITEM_EXIT;
-	      intro_screen.redraw |= REDRAW_INTERMEDIATE;
-	      break;
-	    case ACTION_HELP:
-	      manage_intro_screen_select (INTRO_SCREEN_MENU_ITEM_HELP);
-	      break;
-	    case ACTION_OPTIONS:
-	      manage_intro_screen_select (INTRO_SCREEN_MENU_ITEM_OPTIONS);
-	      break;
-	    case ACTION_TOGGLE_FULLSCREEN:
-	      toggle_fullscreen (&video.fullscreen);
-	      break;
-	    case ACTION_PREVIOUS_LEVEL:
-	      manage_intro_screen_decrement (INTRO_SCREEN_MENU_ITEM_LEVEL);
-	      break;
-	    case ACTION_NEXT_LEVEL:
-	      manage_intro_screen_increment (INTRO_SCREEN_MENU_ITEM_LEVEL);
-	      break;
-	    case ACTION_PREVIOUS_PACK:
-	      manage_intro_screen_decrement (INTRO_SCREEN_MENU_ITEM_PACK);
-	      break;
-	    case ACTION_NEXT_PACK:
-	      manage_intro_screen_increment (INTRO_SCREEN_MENU_ITEM_PACK);
-	      break;
-	    case ACTION_HOME:
-	      if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL)
-		{
-		  /* First level */
-		  level_packs[selected_pack].level_selected = 1;
-		  intro_screen.redraw |= REDRAW_INTERMEDIATE;
-		}
-	      else if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
-		{
-		  /* First pack */
-		  level_packs[selected_pack].selected = FALSE;
-		  selected_pack = 0;
-		  level_packs[selected_pack].selected = TRUE;
-		  intro_screen.redraw |= REDRAW_INTERMEDIATE;
-		}
-	      break;
-	    case ACTION_END:
-	      if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_LEVEL)
-		{
-		  /* Last level */
-		  level_packs[selected_pack].level_selected =
-		    level_packs[selected_pack].level_reached;
-		  intro_screen.redraw |= REDRAW_INTERMEDIATE;
-		}
-	      else if (introscreenselecteditem == INTRO_SCREEN_MENU_ITEM_PACK)
-		{
-		  /* Last pack */
-		  level_packs[selected_pack].selected = FALSE;
-		  selected_pack = found_pack_count - 1;
-		  level_packs[selected_pack].selected = TRUE;
-		  intro_screen.redraw |= REDRAW_INTERMEDIATE;
-		}
-	      break;
-	    case ACTION_PAGEUP:
-	    case ACTION_PAGEDOWN:
-	      break;
-	    case ACTION_TOGGLE_DESIGNER:
-	      manage_intro_screen_select (INTRO_SCREEN_MENU_ITEM_DESIGNER);
-	      break;
-	    case ACTION_VOLUP:
-	      volume_up ();
-	      break;
-	    case ACTION_VOLDOWN:
-	      volume_down ();
-	      break;
-	    case ACTION_MODIFIER1:
-	    case ACTION_MODIFIER2:
-	    case ACTION_MODIFIER3:
-	    case ACTION_MODIFIER4:
-	      break;
-	    default:
-	      break;
-	    }
-	}
-      else if (game_mode == END_SCREEN)
-	{
-		/***************************************************************************
-		 * END SCREEN                                                              *
-		 ***************************************************************************/
-	  /* Get none or one user action and quit on SDL_QUIT */
-	  quit_game |=
-	    get_user_action (&actionid, TRUE, &gua_device, &gua_id,
-			     &gua_state);
-	  switch (actionid)
-	    {
-	    case ACTION_UP:
-	    case ACTION_DOWN:
-	    case ACTION_LEFT:
-	    case ACTION_RIGHT:
-	    case ACTION_RESTART:
-	    case ACTION_SHOOT_UP:
-	    case ACTION_SHOOT_DOWN:
-	    case ACTION_SHOOT_LEFT:
-	    case ACTION_SHOOT_RIGHT:
-	    case ACTION_SELECT:
-	      break;
-	    case ACTION_EXIT:
-	      game_mode = INTRO_SCREEN;
-	      intro_screen.redraw |= REDRAW_INITIALISE;
-	      break;
-	    case ACTION_HELP:
-	    case ACTION_OPTIONS:
-	      break;
-	    case ACTION_TOGGLE_FULLSCREEN:
-	      toggle_fullscreen (&video.fullscreen);
-	      break;
-	    case ACTION_PREVIOUS_LEVEL:
-	    case ACTION_NEXT_LEVEL:
-	    case ACTION_PREVIOUS_PACK:
-	    case ACTION_NEXT_PACK:
-	    case ACTION_HOME:
-	    case ACTION_END:
-	    case ACTION_PAGEUP:
-	    case ACTION_PAGEDOWN:
-	    case ACTION_TOGGLE_DESIGNER:
-	      break;
-	    case ACTION_VOLUP:
-	      volume_up ();
-	      break;
-	    case ACTION_VOLDOWN:
-	      volume_down ();
-	      break;
-	    case ACTION_MODIFIER1:
-	    case ACTION_MODIFIER2:
-	    case ACTION_MODIFIER3:
-	    case ACTION_MODIFIER4:
-	      break;
-	    default:
-	      break;
-	    }
-	}
-      else if (game_mode == HELP_SCREEN)
-	{
-		/***************************************************************************
-		 * HELP SCREEN                                                             *
-		 ***************************************************************************/
-	  /* Get none or one user action and quit on SDL_QUIT */
-	  quit_game |=
-	    get_user_action (&actionid, TRUE, &gua_device, &gua_id,
-			     &gua_state);
-	  switch (actionid)
-	    {
-	    case ACTION_UP:
-	    case ACTION_DOWN:
-	      break;
-	    case ACTION_LEFT:
-	      helppageselecteditem--;
-	      if (helppage > 0 && helppageselecteditem < 0)
-		{
-		  helppage--;
-		  helppageselecteditem = 2;
-		  help_screen.redraw |= REDRAW_EVERYTHING;
-		}
-	      else
-		{
-		  if (helppage == 0 && helppageselecteditem < 1)
-		    helppageselecteditem = 1;
-		  help_screen.redraw |= REDRAW_INTERMEDIATE;
-		}
-	      break;
-	    case ACTION_RIGHT:
-	      helppageselecteditem++;
-	      if (helppage < HELP_SCREEN_PAGES - 1
-		  && helppageselecteditem > 2)
-		{
-		  helppage++;
-		  helppageselecteditem = 0;
-		  help_screen.redraw |= REDRAW_EVERYTHING;
-		}
-	      else
-		{
-		  if (helppage == HELP_SCREEN_PAGES - 1
-		      && helppageselecteditem > 1)
-		    helppageselecteditem = 1;
-		  help_screen.redraw |= REDRAW_INTERMEDIATE;
-		}
-	      break;
-	    case ACTION_RESTART:
-	    case ACTION_SHOOT_UP:
-	    case ACTION_SHOOT_DOWN:
-	    case ACTION_SHOOT_LEFT:
-	    case ACTION_SHOOT_RIGHT:
-	      break;
-	    case ACTION_SELECT:
-	      manage_help_select (helppageselecteditem);
-	      break;
-	    case ACTION_EXIT:
-	      manage_help_select (1);
-	      break;
-	    case ACTION_HELP:
-	    case ACTION_OPTIONS:
-	      break;
-	    case ACTION_TOGGLE_FULLSCREEN:
-	      toggle_fullscreen (&video.fullscreen);
-	      break;
-	    case ACTION_PREVIOUS_LEVEL:
-	    case ACTION_NEXT_LEVEL:
-	    case ACTION_PREVIOUS_PACK:
-	    case ACTION_NEXT_PACK:
-	      break;
-	    case ACTION_HOME:
-	      /* First page */
-	      if (helppage != 0)
-		{
-		  helppage = 0;
-		  helppageselecteditem = 1;
-		  help_screen.redraw |= REDRAW_EVERYTHING;
-		}
-	      break;
-	    case ACTION_END:
-	      /* Last page */
-	      if (helppage != HELP_SCREEN_PAGES - 1)
-		{
-		  helppage = HELP_SCREEN_PAGES - 1;
-		  helppageselecteditem = 1;
-		  help_screen.redraw |= REDRAW_EVERYTHING;
-		}
-	      break;
-	    case ACTION_PAGEUP:
-	      /* Previous page */
-	      manage_help_select (0);
-	      break;
-	    case ACTION_PAGEDOWN:
-	      /* Next page */
-	      manage_help_select (2);
-	      break;
-	    case ACTION_TOGGLE_DESIGNER:
-	      break;
-	    case ACTION_VOLUP:
-	      volume_up ();
-	      break;
-	    case ACTION_VOLDOWN:
-	      volume_down ();
-	      break;
-	    case ACTION_MODIFIER1:
-	    case ACTION_MODIFIER2:
-	    case ACTION_MODIFIER3:
-	    case ACTION_MODIFIER4:
-	      break;
-	    default:
-	      break;
-	    }
-	}
-      else if (game_mode == OPTIONS_SCREEN)
-	{
-		/***************************************************************************
-		 * OPTIONS SCREEN                                                          *
-		 ***************************************************************************/
-	  /* All the screens are laid out like this no matter what's displayed :-
-	     --------------------
-	     | 0                | options[OPTIONS_COUNT] is an array of all the options spread across all
-	     | .                | the pages. Each element is either TRUE if there is a selectable option
-	     | .                | present or FALSE if it is non-selectable i.e. a piece of text or something
-	     | 8                | that occupies that space. Each option has a unique id which is an index into
-	     |                  | this array and is used to identify the option when the user presses a control
-	     | 9   10    11  12 | that may modify it. This array is also used in screen.c to assist in building
-	     | <  Save  Exit  > | the pages. Additionally the selected menu item is recorded for each page in
-	     -------------------- optionspageselecteditem[] with the current page recorded in optionspage.
-	   */
-
-	  /* Are we waiting for a key/button press to assign to a control? */
-	  if (getkey_timeout)
-	    {
-	      getkey_timeout--;
-	      if (getkey_timeout == 0)
-		{
-		  strcpy (temp_msg_box.name, MESSAGE_BOX_GETKEY_ERROR_ID);
-		  strcpy (temp_msg_box.message, txt_No_input_was_detected);
-		  temp_msg_box.timeout = DELAY_MESSAGE_BOX_GETKEY_ERROR;
-		  temp_msg_box.dynamic = TRUE;
-		  temp_msg_box.w = temp_msg_box.h = 0;
-		  show_message_box (MESSAGE_BOX_SUB_INITIALISE,
-				    &temp_msg_box);
-		}
-	      else
-		{
-		  /* Get none or one user action and quit on SDL_QUIT */
-		  quit_game |=
-		    get_user_action (&actionid, FALSE, &gua_device, &gua_id,
-				     &gua_state);
-		  /* Record the pressed/released state changes and look for a release. This is how it works :-
-		     If the user pressed the confirm control to initialise reassignment then the initial state
-		     is pressed and so to register a new key we will be looking for a release as the 3rd state
-		     change.
-		     If the user pressed and released the primary click control to initialise reassignment then
-		     the initial state is released and so to register a new key we will be looking for a release
-		     as the 2nd state change.
-		     The difference is because click activates on release */
-		  if ((gua_state == SDL_PRESSED || gua_state == SDL_RELEASED)
-		      && getkey_state != gua_state)
-		    {
-		      getkey_state = gua_state;
-		      getkey_count++;	/* Count the state changes */
-		      if (getkey_state == SDL_RELEASED && getkey_count >= 2)
-			{
-			  show_message_box (MESSAGE_BOX_SUB_KILL, NULL);	/* Kill the message box */
-			  getkey_timeout = 0;	/* Kill the timeout */
-			  /* Store the new control */
-				temp_user_controls[optionspageselecteditem
-					[optionspage] + (optionspage -
-					OPTIONS_ACTION_UP / 13) * 9].device = gua_device;
-				temp_user_controls[optionspageselecteditem
-					[optionspage] + (optionspage -
-					OPTIONS_ACTION_UP / 13) * 9].id = gua_id;
-				options_screen.redraw |= REDRAW_INTERMEDIATE;
-			}
-		    }
-		}
-	      /* No, so resume normal action servicing */
-	    }
-	  else
-	    {
-	      /* Get none or one user action and quit on SDL_QUIT */
-	      quit_game |=
-		get_user_action (&actionid, TRUE, &gua_device, &gua_id,
-				 &gua_state);
-	      switch (actionid)
-		{
-		case ACTION_UP:
-		  do
-		    {
-		      if (optionspageselecteditem[optionspage] > 8)
-			optionspageselecteditem[optionspage] =
-			  OPTIONS_MENUPOS_LEFT;
-		      optionspageselecteditem[optionspage]--;
-		      if (optionspageselecteditem[optionspage] < 0)
-			optionspageselecteditem[optionspage] =
-			  OPTIONS_MENUPOS_SAVE;
-		    }
-		  while (!options
-			 [optionspage * 13 +
-			  optionspageselecteditem[optionspage]]);
-		  options_screen.redraw |= REDRAW_INTERMEDIATE;
-		  break;
-		case ACTION_DOWN:
-		  do
-		    {
-		      if (optionspageselecteditem[optionspage] > 8)
-			optionspageselecteditem[optionspage] = -1;
-		      optionspageselecteditem[optionspage]++;
-		      if (optionspageselecteditem[optionspage] > 8)
-			optionspageselecteditem[optionspage] =
-			  OPTIONS_MENUPOS_SAVE;
-		    }
-		  while (!options
-			 [optionspage * 13 +
-			  optionspageselecteditem[optionspage]]);
-		  options_screen.redraw |= REDRAW_INTERMEDIATE;
-		  break;
-		case ACTION_LEFT:
-		  if (optionspageselecteditem[optionspage] >
-		      OPTIONS_MENUPOS_LEFT)
-		    {
-		      if (options
-			  [optionspage * 13 +
-			   optionspageselecteditem[optionspage] - 1])
-			optionspageselecteditem[optionspage]--;
-		      options_screen.redraw |= REDRAW_INTERMEDIATE;
-		    }
-		  else if (optionspageselecteditem[optionspage] ==
-			   OPTIONS_MENUPOS_LEFT)
-		    {
-		      /* Previous page */
-		      if (optionspage > 0)
-			{
-			  optionspageselecteditem[--optionspage] =
-			    OPTIONS_MENUPOS_RIGHT;
-			  options_screen.redraw |= REDRAW_EVERYTHING;
-			}
-		    }
-		  else if (optionspageselecteditem[optionspage] <
-			   OPTIONS_MENUPOS_LEFT)
-		    {
-		      manage_options_decrement (optionspage * 13 +
-						optionspageselecteditem
-						[optionspage]);
-		    }
-		  break;
-		case ACTION_RIGHT:
-		  if (optionspageselecteditem[optionspage] >=
-		      OPTIONS_MENUPOS_LEFT
-		      && optionspageselecteditem[optionspage] <
-		      OPTIONS_MENUPOS_RIGHT)
-		    {
-		      if (options
-			  [optionspage * 13 +
-			   optionspageselecteditem[optionspage] + 1])
-			optionspageselecteditem[optionspage]++;
-		      options_screen.redraw |= REDRAW_INTERMEDIATE;
-		    }
-		  else if (optionspageselecteditem[optionspage] ==
-			   OPTIONS_MENUPOS_RIGHT)
-		    {
-		      /* Next page */
-		      if (optionspage < OPTIONS_SCREEN_PAGES - 1)
-			{
-			  optionspageselecteditem[++optionspage] =
-			    OPTIONS_MENUPOS_LEFT;
-			  options_screen.redraw |= REDRAW_EVERYTHING;
-			}
-		    }
-		  else if (optionspageselecteditem[optionspage] <
-			   OPTIONS_MENUPOS_LEFT)
-		    {
-		      manage_options_increment (optionspage * 13 +
-						optionspageselecteditem
-						[optionspage]);
-		    }
-		  break;
-		case ACTION_RESTART:
-		  if (optionspageselecteditem[optionspage] <
-		      OPTIONS_MENUPOS_LEFT)
-		    {
-		      /* Reset a control */
-		      if (optionspage * 13 +
-			  optionspageselecteditem[optionspage] >=
-			  OPTIONS_ACTION_UP
-			  && optionspage * 13 +
-			  optionspageselecteditem[optionspage] <=
-			  OPTIONS_ACTION_PRIMARY_CLICK)
-			{
-			  temp_user_controls[optionspage * 13 +
-					     optionspageselecteditem
-					     [optionspage] -
-					     OPTIONS_ACTION_UP -
-					     (optionspage - 4) * 4].device =
-			    UNDEFINED;
-			  temp_user_controls[optionspage * 13 +
-					     optionspageselecteditem
-					     [optionspage] -
-					     OPTIONS_ACTION_UP -
-					     (optionspage - 4) * 4].id =
-			    UNDEFINED;
-			  temp_user_controls[optionspage * 13 +
-					     optionspageselecteditem
-					     [optionspage] -
-					     OPTIONS_ACTION_UP -
-					     (optionspage - 4) * 4].mod =
-			    UNDEFINED;
-			}
-		      options_screen.redraw |= REDRAW_INTERMEDIATE;
-		    }
-		  break;
-		case ACTION_SHOOT_UP:
-		case ACTION_SHOOT_DOWN:
-		case ACTION_SHOOT_LEFT:
-		case ACTION_SHOOT_RIGHT:
-		  break;
-		case ACTION_SELECT:
-		  /* Unlike the others, this will also need to be entirely manipulatable via the pointer
-		     and so it is additionally sent OPTIONS_MENUPOS_LEFT to OPTIONS_MENUPOS_RIGHT */
-		  manage_options_select (optionspage * 13 +
-					 optionspageselecteditem
-					 [optionspage]);
-		  break;
-		case ACTION_EXIT:
-		  manage_options_select (OPTIONS_MENUPOS_EXIT);	/* Any enabled exit will suffice */
-		  break;
-		case ACTION_HELP:
-		case ACTION_OPTIONS:
-		  break;
-		case ACTION_TOGGLE_FULLSCREEN:
-		  toggle_fullscreen (&video.fullscreen);
-		  break;
-		case ACTION_PREVIOUS_LEVEL:
-		case ACTION_NEXT_LEVEL:
-		case ACTION_PREVIOUS_PACK:
-		case ACTION_NEXT_PACK:
-		  break;
-		case ACTION_HOME:
-		  if (optionspageselecteditem[optionspage] >=
-		      OPTIONS_MENUPOS_LEFT
-		      && optionspageselecteditem[optionspage] <=
-		      OPTIONS_MENUPOS_RIGHT)
-		    {
-		      optionspage = 0;
-		      optionspageselecteditem[optionspage] =
-			OPTIONS_MENUPOS_SAVE;
-		      options_screen.redraw |= REDRAW_EVERYTHING;
-		    }
-		  else if (optionspageselecteditem[optionspage] <
-			   OPTIONS_MENUPOS_LEFT)
-		    {
-		      manage_options_first (optionspage * 13 +
-					    optionspageselecteditem
-					    [optionspage]);
-		    }
-		  break;
-		case ACTION_END:
-		  if (optionspageselecteditem[optionspage] >=
-		      OPTIONS_MENUPOS_LEFT
-		      && optionspageselecteditem[optionspage] <=
-		      OPTIONS_MENUPOS_RIGHT)
-		    {
-		      optionspage = OPTIONS_SCREEN_PAGES - 1;
-		      optionspageselecteditem[optionspage] =
-			OPTIONS_MENUPOS_EXIT;
-		      options_screen.redraw |= REDRAW_EVERYTHING;
-		    }
-		  else if (optionspageselecteditem[optionspage] <
-			   OPTIONS_MENUPOS_LEFT)
-		    {
-		      manage_options_last (optionspage * 13 +
-					   optionspageselecteditem
-					   [optionspage]);
-		    }
-		  break;
-		case ACTION_PAGEUP:
-		  /* Previous page */
-		  manage_options_select (13 + OPTIONS_MENUPOS_LEFT);	/* Use <back on page1 as page0's is disabled */
-		  break;
-		case ACTION_PAGEDOWN:
-		  /* Next page */
-		  manage_options_select (OPTIONS_MENUPOS_RIGHT);	/* Any enabled next> will suffice */
-		  break;
-		case ACTION_TOGGLE_DESIGNER:
-		  break;
-		case ACTION_VOLUP:
-		  volume_up ();
-		  break;
-		case ACTION_VOLDOWN:
-		  volume_down ();
-		  break;
-		case ACTION_MODIFIER1:
-		case ACTION_MODIFIER2:
-		case ACTION_MODIFIER3:
-		case ACTION_MODIFIER4:
-		  break;
-		default:
-		  break;
-		}
-	    }
-	}
-
-      /* [Re]draw the screen and update the game objects if GAME_ON */
-      if (game_mode == GAME_ON)
-	{
-	  /* Update all the game objects */
-	  update_game ();
-	  /* [Re]draw the screen */
-	  game_area.redraw |= REDRAW_ANIMATED;
-	  show_game_area ();	/* This happens here and nowhere else */
-	  /* If the fade is active then show it */
-	  show_game_area_fade (FADE_SUB_SHOW, 0);
-
-#ifdef DEBUG_COLOUR_SELECT
-	  show_level_colour (debug_colour_select_r, debug_colour_select_g,
-			     debug_colour_select_b,
-			     debug_colour_select_component);
-#endif
-	}
-	 else if (game_mode == DESIGNER_ON)
-	{
-	 /* animate konstruktor stuff */
-	 konstruktor_animate ();
-	game_area.redraw |= REDRAW_ANIMATED;
-	 konstruktor_show_game_area ();
-
-	}	
-      else if (game_mode == INTRO_SCREEN)
-	{
-	  /* [Re]draw the screen */
-	  intro_screen.redraw |= REDRAW_ANIMATED;
-	  show_introscreen ();	/* This happens here and nowhere else */
-	}
-      else if (game_mode == END_SCREEN)
-	{
-	  /* [Re]draw the screen */
-	  show_endscreen ();	/* This happens here and nowhere else */
-	}
-      else if (game_mode == HELP_SCREEN)
-	{
-	  /* [Re]draw the screen */
-	  help_screen.redraw |= REDRAW_ANIMATED;
-	  show_helpscreen ();	/* This happens here and nowhere else */
-	}
-      else if (game_mode == OPTIONS_SCREEN)
-	{
-	  /* [Re]draw the screen */
-	  options_screen.redraw |= REDRAW_ANIMATED;
-	  show_optionsscreen ();	/* This happens here and nowhere else */
-	}
-
-     /* Render any ROB engine objects */
-      ROB_RenderObjects ();
-
-     /* If there's a message box active then show it */
-      show_message_box (MESSAGE_BOX_SUB_SHOW, NULL);
-
-      /* Update the screen */
-      SDL_Flip (screen);
-
-      /* I think I should explain how the timing works as people may think I'm simply calling SDL_Delay(10)
-         every cycle and then continuing which would be OKish if the workload was always the same.
-         There is an SDL timer that sets the game_next_cycle flag every 20Hz (slow), 25Hz (normal) or 33Hz (fast).
-         This game is far from being CPU intensive especially since only small portions of the screen are being
-         updated when needed, so 90%+ of the time is spent in the while loop waiting for the game_next_cycle
-         flag to be set by the SDL timer. The SDL_Delay(game_cycle_delay) within the while loop is simply passing
-         control to the OS to service other tasks. If there was no delay here then this game would be a CPU hog.
-         I should mention that on my computer I can do SDL_Delay(0) but other computers will need a minimum of
-         10ms, therefore game_cycle_delay is set to 10ms by default but can be set to something else by modifying
-         [game_cycle_delay] in the .gnurobborc file in your home folder. I expect this will never be modified */
-
-      /* Is there a cycle limit in place? */
-      if (game_cycle_limit)
-	{ 
-	  /* Wait until the timer sets the flag before proceeding */
-
-	  while (!game_next_cycle) 
-	      SDL_Delay (game_cycle_delay);	/* Robbo spends 90%+ of his time in this loop :) */
-
-	  game_next_cycle = FALSE;
-
-	}
-
-      cycle_count++;
-
-      if (game_mode != INTRO_SCREEN)
-	demo_mode (DEMO_MODE_TIMEOUT_INITIALISE, 0);	/* Easier to do it once here */
-
-    }
 
 #ifdef DEBUG_RECORD_DEMO
   demo_mode (DEMO_MODE_DUMP, 0);
