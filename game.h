@@ -44,6 +44,10 @@
   #include <SDL/SDL_ttf.h>
 #endif
 
+#ifdef EMSCRIPTEN
+  #include <stdio.h>
+#endif
+
 #include <SDL/SDL_mixer.h>
 #include <string.h>
 #include <stdlib.h>
