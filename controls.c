@@ -1477,6 +1477,7 @@ void get_input_device_text (int device, int id, char *joyname, char *text)
 			case SDLK_RMETA:
 				strcpy (text, txt_key_RMeta);
 				break;
+#ifndef EMSCRIPTEN
 			case SDLK_LMETA:
 				strcpy (text, txt_key_LMeta);
 				break;
@@ -1486,6 +1487,7 @@ void get_input_device_text (int device, int id, char *joyname, char *text)
 			case SDLK_RSUPER:
 				strcpy (text, txt_key_RSuper);
 				break;
+#endif
 			case SDLK_MODE:
 				strcpy (text, txt_key_AltGr);
 				break;
@@ -1510,9 +1512,11 @@ void get_input_device_text (int device, int id, char *joyname, char *text)
 			case SDLK_POWER:
 				strcpy (text, txt_key_Power);
 				break;
+#ifndef EMSCRIPTEN
 			case SDLK_EURO:
 				strcpy (text, txt_key_Euro);
 				break;
+#endif
 			case SDLK_UNDO:
 				strcpy (text, txt_key_Undo);
 				break;
