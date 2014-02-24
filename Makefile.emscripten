@@ -25,8 +25,8 @@ MUSIC=-DHAVE_MUSIC
 DESIGNER=-DHAVE_DESIGNER
 
 # Choose ONE of these and comment out the other
-#FONT_USE_PIXMAP=-DUSE_PIXMAP_FONT
-FONT_USE_SDL_TTF=-lSDL_ttf
+FONT_USE_PIXMAP=-DUSE_PIXMAP_FONT
+#FONT_USE_SDL_TTF=-lSDL_ttf
 
 # You won't need to alter these
 TARGET=gnurobbo.html
