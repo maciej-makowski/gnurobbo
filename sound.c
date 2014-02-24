@@ -569,11 +569,13 @@ load_samples(void)
 int
 audio_opened()
 {
+    int             retval = 0;
+#ifndef EMSCRIPTEN
     int             audio_rate = 0;
     Uint16          audio_format = 0;
     int             channels = 0;
-    int             retval = 0;
     retval = Mix_QuerySpec(&audio_rate, &audio_format, &channels);
+#endif
 #ifdef DEBUG_SOUND
     printf("num audio open %d\n", retval);
     printf("*** sound=%i\n", sound);
