@@ -46,6 +46,7 @@
 
 #ifdef EMSCRIPTEN
   #include <stdio.h>
+  #define SDL_DisplayFormat SDL_DisplayFormatAlpha
 #endif
 
 #include <SDL/SDL_mixer.h>
