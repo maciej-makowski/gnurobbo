@@ -505,11 +505,11 @@ update_game(void)
 			    move_object(x, y, coords);
 			}
 
-			if (!(rand() & 0x07))	/* chances for random move */
+			if (!(my_rand() & 0x07))	/* chances for random move */
 			    board[coords.x][coords.y].direction =
-				rand() & 0x03;
+				my_rand() & 0x03;
 
-			else if ((rand() & 0x01) == 0) {	/* if butterfly flies horizontally */
+			else if ((my_rand() & 0x01) == 0) {	/* if butterfly flies horizontally */
 			    if (robbo.x > coords.x)
 				board[coords.x][coords.y].direction = 0;
 			    else if (robbo.x < coords.x)
@@ -750,7 +750,7 @@ update_game(void)
 				case GUN:
 				    board[x][y].rotable = 1;
 				    board[x][y].randomrotated = 1;
-				    board[x][y].direction = rand() & 0x03;
+				    board[x][y].direction = my_rand() & 0x03;
 				    break;
 				default:
 				    break;
@@ -819,7 +819,7 @@ update_game(void)
 			    break;	/* *neurocyp we are already locked on a magnet we ignore other blocks */
 			   if (board[x][y].rotable) {	/* *neurocyp: we will not rotate, when we shoot */
 				if (board[x][y].rotated == 0) {
-				    temp_direction=rand() & 0x03;
+				    temp_direction=my_rand() & 0x03;
 				    board[x][y].direction = temp_direction;
 				    board[x][y].state = temp_direction;
 				    board[coords.x][coords.y].rotated = DELAY_ROTATION;
@@ -900,7 +900,7 @@ update_game(void)
 				if (board[coords.x][coords.y].rotated == 0) {
 
 				    if (board[coords.x] [coords.y].randomrotated) {
-					temp_direction=rand() & 0x03;
+					temp_direction=my_rand() & 0x03;
 					if(board[coords.x][coords.y].movable==1) {
 						board[coords.x][coords.y].direction2=abs(board[coords.x][coords.y].direction2+(temp_direction-board[coords.x][coords. y].direction)) % 4;
 					} 
@@ -915,7 +915,7 @@ update_game(void)
 			}
 			if (board[coords.x][coords.y].shooted == 0) {
 			    if (board[coords.x][coords.y].solidlaser == 2) {
-				if (((rand()) & 0x07) == 0) {	/* it's blaster */
+				if (((my_rand()) & 0x07) == 0) {	/* it's blaster */
 				    if (in_viewport(x, y))
 					play_sound(SFX_GUN, SND_NORM);
 				    else
@@ -958,7 +958,7 @@ update_game(void)
 				} else
 				    board[coords.x][coords.y].shooted = DELAY_LASER;
 			    } else {
-				if ((rand() & 0x07) == 0) {
+				if ((my_rand() & 0x07) == 0) {
 				    /*
 				     * gun shoots 
 				     */
@@ -1426,7 +1426,7 @@ shoot_object(int x, int y, int direction)
 	 * solid laser fire to make the graphics more interesting 
 	 */
 	if (board[coords.x][coords.y].solidlaser == 1)
-		board[coords.x][coords.y].state=(board[x][y].state==3)?board[x][y].state:(rand()%2)+2;	    
+		board[coords.x][coords.y].state=(board[x][y].state==3)?board[x][y].state:(my_rand()%2)+2;	    
 
 	break;
     case LASER_D:
