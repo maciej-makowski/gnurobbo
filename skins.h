@@ -20,7 +20,7 @@
 
 /* Defines */
 #define MAX_SKINS 10
-#define DEFAULT_SKIN "tronic"
+#define DEFAULT_SKIN "original"
 
 #define FONTSIZE16 10
 #define FONTSIZE32 20
