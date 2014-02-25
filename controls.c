@@ -598,13 +598,13 @@ void set_default_user_controls (struct control user_controls[USER_CONTROLS])
 		user_controls[ACTION_UP_LEFT].device = UNDEFINED;
 		user_controls[ACTION_RESTART].id = SDLK_r;
 		user_controls[ACTION_SHOOT_UP].id = SDLK_UP;
-		user_controls[ACTION_SHOOT_UP].mod = ACTION_MODIFIER2;
+		user_controls[ACTION_SHOOT_UP].mod = ACTION_MODIFIER1;
 		user_controls[ACTION_SHOOT_DOWN].id = SDLK_DOWN;
-		user_controls[ACTION_SHOOT_DOWN].mod = ACTION_MODIFIER2;
+		user_controls[ACTION_SHOOT_DOWN].mod = ACTION_MODIFIER1;
 		user_controls[ACTION_SHOOT_LEFT].id = SDLK_LEFT;
-		user_controls[ACTION_SHOOT_LEFT].mod = ACTION_MODIFIER2;
+		user_controls[ACTION_SHOOT_LEFT].mod = ACTION_MODIFIER1;
 		user_controls[ACTION_SHOOT_RIGHT].id = SDLK_RIGHT;
-		user_controls[ACTION_SHOOT_RIGHT].mod = ACTION_MODIFIER2;
+		user_controls[ACTION_SHOOT_RIGHT].mod = ACTION_MODIFIER1;
 		user_controls[ACTION_SELECT].id = SDLK_RETURN;
 		user_controls[ACTION_EXIT].id = SDLK_ESCAPE;
 		user_controls[ACTION_HELP].id = SDLK_F1;
